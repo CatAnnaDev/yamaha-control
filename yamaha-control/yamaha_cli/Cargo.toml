@@ -1,0 +1,8 @@
+[package]
+name = "yamaha_cli"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+yamaha_api = { path = "../yamaha_api" }
+tokio = { version = "1.45.1", features = ["full"] }

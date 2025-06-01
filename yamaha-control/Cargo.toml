@@ -1,0 +1,5 @@
+[workspace]
+members = [
+    "yamaha_api",
+    "yamaha_cli"
+]
