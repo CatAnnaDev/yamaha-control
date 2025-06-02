@@ -3,3 +3,4 @@ members = [
     "yamaha_api",
     "yamaha_cli"
 ]
+resolver = "3"

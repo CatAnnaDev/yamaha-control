@@ -1,7 +1,5 @@
-use std::fmt::{Display, Formatter};
-use std::net::IpAddr;
-
 use serde_json::Value;
+use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum YamahaErrorCode {
@@ -64,7 +62,7 @@ impl YamahaErrorCode {
             115 => Self::StreamingSimultaneousLogins,
             200 => Self::DistributionLinking,
             201 => Self::DistributionUnlinking,
-            _ => Self::Unknown(code),       
+            _ => Self::Unknown(code),
         }
     }
 
@@ -93,7 +91,9 @@ impl YamahaErrorCode {
             YamahaErrorCode::StreamingReadOnly => "110 Read Only Mode".into(),
             YamahaErrorCode::StreamingMaxStations => "111 Max Stations Reached".into(),
             YamahaErrorCode::StreamingAccessDenied => "112 Access Denied".into(),
-            YamahaErrorCode::StreamingNeedPlaylistDestination => "113 Playlist Destination Required".into(),
+            YamahaErrorCode::StreamingNeedPlaylistDestination => {
+                "113 Playlist Destination Required".into()
+            }
             YamahaErrorCode::StreamingNeedNewPlaylist => "114 New Playlist Required".into(),
             YamahaErrorCode::StreamingSimultaneousLogins => "115 Simultaneous Login Limit".into(),
             YamahaErrorCode::DistributionLinking => "200 Linking in progress".into(),
@@ -110,29 +110,6 @@ pub fn parse_response_code(data: &str) -> YamahaErrorCode {
         }
     }
     YamahaErrorCode::Unknown(-1)
-}
-
-#[derive(Debug, Clone)]
-pub struct YamahaAmp {
-    pub ip: IpAddr,
-    pub model: String,
-    pub device_id: String,
-    pub api_version: String,
-}
-
-impl YamahaAmp {
-    pub fn from_discovery(ip: IpAddr, json: serde_json::Value) -> Self {
-        Self {
-            ip,
-            model: json.get("model_name").and_then(|v| v.as_str()).unwrap_or_default().to_string(),
-            device_id: json.get("device_id").and_then(|v| v.as_str()).unwrap_or_default().to_string(),
-            api_version: json.get("api_version").and_then(|v| v.as_str()).unwrap_or_default().to_string(),
-        }
-    }
-
-    pub fn endpoint(&self, path: &str) -> String {
-        format!("http://{}/YamahaExtendedControl/v1/{}", self.ip, path)
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

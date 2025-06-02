@@ -1,24 +1,34 @@
-use yamaha_api::{discover_amplifiers, Zone};
+use std::net::Ipv4Addr;
+use yamaha_api::{YamahaAmp, YamahaAmpBlocking};
 
 #[tokio::main]
 async fn main() {
-    println!("Recherche des amplis Yamaha...");
-    let amplis = discover_amplifiers().await;
-
-    if amplis.is_empty() {
-        println!("Aucun ampli détecté.");
-    } else {
-        for (i, amp) in amplis.iter().enumerate() {
-            println!("{}: {} ({})", i + 1, amp.model, amp.ip);
-        }
-
-        println!("\nStatut du premier ampli :");
-        if let Err(status) = amplis[0].get_main_status().await {
-            println!("Main: {}", status.message());
-        }
-
-        if let Err(status) = amplis[0].get_zone_status(Zone::Zone2).await {
-            println!("Zone2: {}", status.message());
-        }
+    
+    // Mode async
+    let amps = YamahaAmp::discover().await;
+    for (index, amp) in amps.iter().enumerate() {
+        println!("Async {}. {} -> ({})", index + 1, amp.model, amp.ip,);
     }
+
+    let amp = YamahaAmp::connect(Ipv4Addr::new(192, 168, 1, 126)).await;
+    if let Some(amp) = amp {
+        println!("Connected async to {}", amp.model);
+    }
+
+    println!();
+
+    // Mode sync
+    tokio::task::spawn_blocking(|| {
+        let amps = YamahaAmpBlocking::discover();
+        for (index, amp) in amps.iter().enumerate() {
+            println!("Sync {}. {} -> ({})", index + 1, amp.model, amp.ip);
+        }
+
+        let amp = YamahaAmpBlocking::connect(Ipv4Addr::new(192, 168, 1, 126));
+        if let Some(amp) = amp {
+            println!("Connected sync to {}", amp.model);
+        }
+    })
+    .await
+    .unwrap()
 }

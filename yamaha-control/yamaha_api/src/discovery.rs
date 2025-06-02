@@ -1,13 +1,14 @@
-use std::net::{IpAddr, Ipv4Addr};
-use tokio::time::{timeout, Duration};
+use crate::YamahaAmpBlocking;
+use crate::async_api::YamahaAmpAsync;
 use futures::stream::{FuturesUnordered, StreamExt};
-use crate::YamahaAmp;
+use std::net::Ipv4Addr;
+use tokio::time::{Duration, timeout};
 
-pub async fn discover_amplifiers() -> Vec<YamahaAmp> {
+pub async fn discover_amplifiers() -> Vec<YamahaAmpAsync> {
     let mut tasks = FuturesUnordered::new();
 
     for i in 1..=254 {
-        let ip = IpAddr::V4(Ipv4Addr::new(192, 168, 1, i));
+        let ip = Ipv4Addr::new(192, 168, 1, i);
         tasks.push(async move {
             match try_connect(ip).await {
                 Some(amp) => Some(amp),
@@ -26,24 +27,54 @@ pub async fn discover_amplifiers() -> Vec<YamahaAmp> {
     found
 }
 
-async fn try_connect(ip: IpAddr) -> Option<YamahaAmp> {
-    let url = format!("http://{}/YamahaExtendedControl/v1/system/getDeviceInfo", ip);
+async fn try_connect(ip: Ipv4Addr) -> Option<YamahaAmpAsync> {
+    let url = format!(
+        "http://{}/YamahaExtendedControl/v1/system/getDeviceInfo",
+        ip
+    );
     let client = reqwest::Client::new();
     if let Ok(Ok(resp)) = timeout(Duration::from_millis(500), client.get(url).send()).await {
         if let Ok(json) = resp.json::<serde_json::Value>().await {
-            return Some(YamahaAmp::from_discovery(ip, json));
+            return Some(YamahaAmpAsync::from_discovery(ip, json));
         }
     }
     None
 }
 
-pub async fn connect_direct(ip: IpAddr) -> Option<YamahaAmp> {
-    let url = format!("http://{}/YamahaExtendedControl/v1/system/getDeviceInfo", ip);
-    let client = reqwest::Client::new();
-    if let Ok(resp) = client.get(url).send().await {
-        if let Ok(json) = resp.json::<serde_json::Value>().await {
-            return Some(YamahaAmp::from_discovery(ip, json));
+pub async fn connect_direct(ip: Ipv4Addr) -> Option<YamahaAmpAsync> {
+    try_connect(ip).await
+}
+
+fn try_connect_blocking(ip: Ipv4Addr) -> Option<YamahaAmpBlocking> {
+    let client = reqwest::blocking::Client::builder()
+        .timeout(Duration::from_millis(400))
+        .build()
+        .ok()?;
+
+    let url = format!(
+        "http://{}/YamahaExtendedControl/v1/system/getDeviceInfo",
+        ip
+    );
+    if let Ok(resp) = client.get(&url).send() {
+        if let Ok(json) = resp.json::<serde_json::Value>() {
+            return Some(YamahaAmpBlocking::from_discovery(ip, json));
         }
     }
     None
+}
+
+pub fn discover_amplifiers_blocking() -> Vec<YamahaAmpBlocking> {
+    use rayon::prelude::*;
+
+    (1..=254)
+        .into_par_iter()
+        .filter_map(|i| {
+            let ip = Ipv4Addr::new(192, 168, 1, i);
+            try_connect_blocking(ip)
+        })
+        .collect()
+}
+
+pub fn connect_direct_blocking(ip: Ipv4Addr) -> Option<YamahaAmpBlocking> {
+    try_connect_blocking(ip)
 }

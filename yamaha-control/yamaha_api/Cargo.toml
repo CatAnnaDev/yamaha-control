@@ -5,7 +5,8 @@ edition = "2024"
 
 [dependencies]
 tokio = { version = "1.45.1", features = ["full"] }
-reqwest = { version = "0.12.18", features = ["json", "gzip"] }
+reqwest = { version = "0.12.18", features = ["json", "gzip", "blocking"] }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 futures = "0.3.31"
+rayon = "1.10.0"
