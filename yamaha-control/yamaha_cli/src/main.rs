@@ -1,5 +1,5 @@
 use std::net::Ipv4Addr;
-use yamaha_api::{SoundProgram, YamahaAmp, YamahaAmpBlocking, Zone};
+use yamaha_api::{GetStatus, SoundProgram, YamahaAmp, YamahaAmpBlocking, Zone};
 
 #[tokio::main]
 async fn main() {
@@ -15,7 +15,9 @@ async fn main() {
         println!("Directly Connected async to {}", amp.model);
 
         if let Ok(e) = amp.get_zone_status(Zone::Main).await {
-            println!("Main: {}", e);
+            if let Ok(e) = serde_json::from_value::<GetStatus>(e) {
+                println!("Main actual volume: {}", e.volume); 
+            }
         }
         
         if let Err(e) = amp.set_sound_program(SoundProgram::Straight).await {
