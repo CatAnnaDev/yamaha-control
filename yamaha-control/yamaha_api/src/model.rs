@@ -85,7 +85,7 @@ pub enum Zone {
     }
 
 impl_string_enum! {
-
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PowerState {
     On,
     Toggle,
@@ -94,7 +94,7 @@ pub enum PowerState {
     }
 
 impl_string_enum! {
-
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Input {
     Cd,
     Tuner,
@@ -163,7 +163,7 @@ pub enum Input {
     }
 
 impl_string_enum! {
-
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SoundProgram {
     MunichA,
     MunichB,
