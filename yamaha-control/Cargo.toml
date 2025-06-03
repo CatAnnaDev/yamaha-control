@@ -1,7 +1,8 @@
 [workspace]
 members = [
     "yamaha_api",
-    "yamaha_cli"
+    "yamaha_cli",
+    "yamaha_gui"
 ]
 resolver = "3"
 
