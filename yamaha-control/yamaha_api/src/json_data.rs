@@ -514,8 +514,6 @@ pub struct GetStatus {
     pub power: String,
     #[serde(rename = "pure_direct")]
     pub pure_direct: bool,
-    #[serde(rename = "response_code")]
-    pub response_code: i64,
     pub sleep: i64,
     #[serde(rename = "sound_program")]
     pub sound_program: String,

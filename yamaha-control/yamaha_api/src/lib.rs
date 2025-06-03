@@ -1,34 +1,62 @@
 mod async_api;
 mod blocking_api;
+mod common_api;
 mod discovery;
-mod model;
+mod error;
 mod json_data;
+mod model;
 
-use crate::async_api::YamahaAmpAsync;
-pub use crate::blocking_api::YamahaAmpBlocking;
-pub use discovery::*;
-pub use model::*;
+pub use {
+    async_api::YamahaAmpAsync, blocking_api::YamahaAmpBlocking, discovery::*, error::YamahaError,
+    json_data::*, model::*,
+};
+
 use std::net::Ipv4Addr;
-pub use json_data::*;
 
-pub struct YamahaAmp;
-
-impl YamahaAmp {
-    pub async fn discover() -> Vec<YamahaAmpAsync> {
-        discover_amplifiers().await
+impl YamahaAmpAsync {
+    /// Découvre tous les amplificateurs Yamaha sur le réseau
+    ///
+    /// # Arguments
+    /// * `config` - Configuration optionnelle pour la découverte
+    ///
+    /// # Returns
+    /// * `Result<Vec<YamahaAmpAsync>, YamahaError>` - Liste des amplificateurs trouvés
+    pub async fn discover(config: Option<DiscoveryConfig>) -> Result<Vec<Self>, YamahaError> {
+        discover_amplifiers(config).await
     }
 
-    pub async fn connect(ip: Ipv4Addr) -> Option<YamahaAmpAsync> {
+    /// Se connecte directement à un amplificateur à l'adresse IP spécifiée
+    ///
+    /// # Arguments
+    /// * `ip` - Adresse IPv4 de l'amplificateur
+    ///
+    /// # Returns
+    /// * `Result<Option<YamahaAmpAsync>, YamahaError>` - L'amplificateur s'il est trouvé
+    pub async fn connect(ip: Ipv4Addr) -> Result<Option<Self>, YamahaError> {
         connect_direct(ip).await
     }
 }
 
 impl YamahaAmpBlocking {
-    pub fn discover() -> Vec<YamahaAmpBlocking> {
-        discover_amplifiers_blocking()
+    /// Découvre tous les amplificateurs Yamaha sur le réseau
+    ///
+    /// # Arguments
+    /// * `config` - Configuration optionnelle pour la découverte
+    ///
+    /// # Returns
+    /// * `Result<Vec<YamahaAmpBlocking>, YamahaError>` - Liste des amplificateurs trouvés
+    pub fn discover(config: Option<DiscoveryConfig>) -> Result<Vec<Self>, YamahaError> {
+        discover_amplifiers_blocking(config)
     }
 
-    pub fn connect(ip: Ipv4Addr) -> Option<YamahaAmpBlocking> {
+    /// Se connecte directement à un amplificateur à l'adresse IP spécifiée
+    ///
+    /// # Arguments
+    /// * `ip` - Adresse IPv4 de l'amplificateur
+    ///
+    /// # Returns
+    /// * `Result<Option<YamahaAmpBlocking>, YamahaError>` - L'amplificateur s'il est trouvé
+    pub fn connect(ip: Ipv4Addr) -> Result<Option<Self>, YamahaError> {
         connect_direct_blocking(ip)
     }
 }

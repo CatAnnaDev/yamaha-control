@@ -7,3 +7,4 @@ edition = "2024"
 yamaha_api = { path = "../yamaha_api" }
 serde_json = "1.0.140"
 tokio = { version = "1.45.1", features = ["full"] }
+anyhow = "1.0.98"

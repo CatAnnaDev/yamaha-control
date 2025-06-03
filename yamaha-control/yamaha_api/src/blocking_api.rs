@@ -1,141 +1,219 @@
+use crate::common_api::{ApiResponse, DeviceInfo, YamahaAmpBase, YamahaApi};
+use crate::error::{YamahaError, YamahaErrorCode};
 use crate::model::Zone;
-use crate::{YamahaErrorCode, parse_response_code, PowerState, Input, SoundProgram};
-use reqwest::blocking::Client;
-use serde_json::Value;
+use crate::{Input, PowerState, SoundProgram};
+use reqwest::blocking::Client as BlockingClient;
 use std::net::Ipv4Addr;
+use std::ops::Deref;
 
-pub struct YamahaAmpBlocking {
-    pub ip: Ipv4Addr,
-    client: Client,
-    pub model: String,
-    pub device_id: String,
-    pub api_version: String,
+impl Deref for YamahaAmpBlocking {
+    type Target = YamahaAmpBase<BlockingClient>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
+/// Structure représentant un amplificateur Yamaha avec une interface synchrone
+#[derive(Debug)]
+pub struct YamahaAmpBlocking(YamahaAmpBase<BlockingClient>);
+
+impl YamahaApi for YamahaAmpBlocking {}
+
 impl YamahaAmpBlocking {
-    pub(crate) fn from_discovery(ip: Ipv4Addr, json: Value) -> Self {
-        Self {
+    /// Crée une nouvelle instance à partir d'une découverte réseau
+    pub(crate) fn from_discovery(ip: Ipv4Addr, json: serde_json::Value) -> Self {
+        Self(YamahaAmpBase {
             ip,
-            client: Client::new(),
-            model: json
-                .get("model_name")
-                .and_then(|v| v.as_str())
-                .unwrap_or_default()
-                .to_string(),
-            device_id: json
-                .get("device_id")
-                .and_then(|v| v.as_str())
-                .unwrap_or_default()
-                .to_string(),
-            api_version: json
-                .get("api_version")
-                .and_then(|v| v.as_str())
-                .unwrap_or_default()
-                .to_string(),
-        }
+            client: BlockingClient::new(),
+            info: serde_json::from_value::<DeviceInfo>(json).unwrap_or_default(),
+        })
     }
 
-    fn endpoint(&self, path: &str) -> String {
-        format!("http://{}/YamahaExtendedControl/v1/{}", self.ip, path)
-    }
-    
-    fn request(&self, url: String) -> Result<serde_json::Value, YamahaErrorCode> {
-        let resp = self
+    /// Effectue une requête HTTP GET synchrone vers l'amplificateur
+    ///
+    /// # Arguments
+    /// * `url` - L'URL complète de la requête
+    ///
+    /// # Returns
+    /// * `Result<T, YamahaError>` - Le résultat désérialisé ou une erreur
+    fn request<T: for<'de> serde::Deserialize<'de>>(&self, url: String) -> Result<T, YamahaError> {
+        let response = self
+            .0
             .client
             .get(url)
             .send()
-            .map_err(|_| YamahaErrorCode::Timeout)?;
-        let json: serde_json::Value = resp.json().map_err(|_| YamahaErrorCode::InvalidResponse)?;
+            .map_err(YamahaError::Http)?
+            .json::<ApiResponse<T>>()
+            .map_err(YamahaError::Http)?;
 
-        let code = parse_response_code(&json.to_string());
-        if code != YamahaErrorCode::Ok {
-            return Err(code);
+        match (response.response_code, response.data) {
+            (0, Some(data)) => Ok(data),
+            (code, _) => Err(YamahaError::YamahaErrorCode(YamahaErrorCode::from_code(
+                code,
+            ))),
         }
-
-        Ok(json)
     }
-    pub fn get_zone_status(&self, zone: Zone) -> Result<serde_json::Value, YamahaErrorCode> {
-        let url = self.endpoint(&format!("{zone}/getStatus"));
+
+    /// Récupère le statut d'une zone spécifique
+    ///
+    /// # Arguments
+    /// * `zone` - La zone pour laquelle récupérer le statut
+    pub fn get_zone_status(&self, zone: Zone) -> Result<serde_json::Value, YamahaError> {
+        let url = self.endpoint(&self.0.ip, &format!("{zone}/getStatus"));
         Self::request(self, url)
     }
 
-    pub fn get_sound_program_list(&self, zone: Zone) -> Result<serde_json::Value, YamahaErrorCode> {
-        let url = self.endpoint(&format!("{zone}/getSoundProgramList"));
+    /// Récupère la liste des programmes sonores disponibles pour une zone
+    pub fn get_sound_program_list(&self, zone: Zone) -> Result<serde_json::Value, YamahaError> {
+        let url = self.endpoint(&self.0.ip, &format!("{zone}/getSoundProgramList"));
         Self::request(self, url)
     }
 
-    pub fn get_main_status(&self) -> Result<serde_json::Value, YamahaErrorCode> {
-        let url = self.endpoint("main/getStatus");
+    /// Récupère le statut de la zone principale
+    pub fn get_main_status(&self) -> Result<serde_json::Value, YamahaError> {
+        let url = self.endpoint(&self.0.ip, "main/getStatus");
         Self::request(self, url)
     }
 
-    pub fn get_signal_info(&self) -> Result<serde_json::Value, YamahaErrorCode> {
-        let url = self.endpoint("main/getSignalInfo");
+    /// Récupère les informations sur le signal audio
+    pub fn get_signal_info(&self) -> Result<serde_json::Value, YamahaError> {
+        let url = self.endpoint(&self.0.ip, "main/getSignalInfo");
         Self::request(self, url)
     }
 
-    pub fn set_volume(&self, volume: i32) -> Result<serde_json::Value, YamahaErrorCode> {
-        let url = self.endpoint(&format!("main/setVolume?volume={}", volume));
+    /// Définit le volume principal
+    ///
+    /// # Arguments
+    /// * `volume` - Niveau de volume (généralement entre -80 et 16)
+    pub fn set_volume(&self, volume: i32) -> Result<serde_json::Value, YamahaError> {
+        let url = self.endpoint(&self.0.ip, &format!("main/setVolume?volume={}", volume));
         Self::request(self, url)
     }
 
-    pub fn set_sound_program(&self, program: SoundProgram) -> Result<serde_json::Value, YamahaErrorCode> {
-        let url = self.endpoint(&format!("main/setSoundProgram?program={}", program));
+    /// Définit le programme sonore
+    pub fn set_sound_program(
+        &self,
+        program: SoundProgram,
+    ) -> Result<serde_json::Value, YamahaError> {
+        let url = self.endpoint(
+            &self.0.ip,
+            &format!("main/setSoundProgram?program={}", program),
+        );
         Self::request(self, url)
     }
 
-    pub fn set_power(&self, power_state: PowerState) -> Result<serde_json::Value, YamahaErrorCode> {
-        let url = self.endpoint(&format!("main/setPower?power={}", power_state.as_str()));
+    /// Contrôle l'alimentation de l'amplificateur
+    pub fn set_power(&self, power_state: PowerState) -> Result<serde_json::Value, YamahaError> {
+        let url = self.endpoint(
+            &self.0.ip,
+            &format!("main/setPower?power={}", power_state.as_str()),
+        );
         Self::request(self, url)
     }
 
-    pub fn set_mute(&self, mute: bool) -> Result<serde_json::Value, YamahaErrorCode> {
-        let url = self.endpoint(&format!("main/setMute?enable={}", mute.to_string().to_lowercase()));
+    /// Active ou désactive le mode muet
+    pub fn set_mute(&self, mute: bool) -> Result<serde_json::Value, YamahaError> {
+        let url = self.endpoint(
+            &self.0.ip,
+            &format!("main/setMute?enable={}", mute.to_string().to_lowercase()),
+        );
         Self::request(self, url)
     }
 
-    pub fn set_input(&self, input: Input) -> Result<serde_json::Value, YamahaErrorCode> {
-        let url = self.endpoint(&format!("main/setInput?input={}", input));
+    /// Change la source d'entrée
+    pub fn set_input(&self, input: Input) -> Result<serde_json::Value, YamahaError> {
+        let url = self.endpoint(&self.0.ip, &format!("main/setInput?input={}", input));
         Self::request(self, url)
     }
 
-    pub fn set_direct(&self, direct: bool) -> Result<serde_json::Value, YamahaErrorCode> {
-        let url = self.endpoint(&format!("main/setDirect?enable={}", direct.to_string().to_lowercase()));
+    /// Active ou désactive le mode Direct
+    pub fn set_direct(&self, direct: bool) -> Result<serde_json::Value, YamahaError> {
+        let url = self.endpoint(
+            &self.0.ip,
+            &format!(
+                "main/setDirect?enable={}",
+                direct.to_string().to_lowercase()
+            ),
+        );
         Self::request(self, url)
     }
 
-    pub fn set_pure_direct(&self, direct: bool) -> Result<serde_json::Value, YamahaErrorCode> {
-        let url = self.endpoint(&format!("main/setPureDirect?enable={}", direct.to_string().to_lowercase()));
+    /// Active ou désactive le mode Pure Direct
+    pub fn set_pure_direct(&self, direct: bool) -> Result<serde_json::Value, YamahaError> {
+        let url = self.endpoint(
+            &self.0.ip,
+            &format!(
+                "main/setPureDirect?enable={}",
+                direct.to_string().to_lowercase()
+            ),
+        );
         Self::request(self, url)
     }
 
-    pub fn set_enhancer(&self, enhance: bool) -> Result<serde_json::Value, YamahaErrorCode> {
-        let url = self.endpoint(&format!("main/setEnhancer?enable={}", enhance.to_string().to_lowercase()));
+    /// Active ou désactive l'amélioration du son
+    pub fn set_enhancer(&self, enhance: bool) -> Result<serde_json::Value, YamahaError> {
+        let url = self.endpoint(
+            &self.0.ip,
+            &format!(
+                "main/setEnhancer?enable={}",
+                enhance.to_string().to_lowercase()
+            ),
+        );
         Self::request(self, url)
     }
 
-    pub fn set_dialogue_level(&self, level: i32) -> Result<serde_json::Value, YamahaErrorCode> {
-        let url = self.endpoint(&format!("main/setDialogueLevel?value={}", level));
+    /// Règle le niveau des dialogues
+    pub fn set_dialogue_level(&self, level: i32) -> Result<serde_json::Value, YamahaError> {
+        let url = self.endpoint(
+            &self.0.ip,
+            &format!("main/setDialogueLevel?value={}", level),
+        );
         Self::request(self, url)
     }
 
-    pub fn set_subwoofer_volume(&self, volume: i32) -> Result<serde_json::Value, YamahaErrorCode> {
-        let url = self.endpoint(&format!("main/setSubwooferVolume?volume={}", volume));
+    /// Règle le volume du caisson de basse
+    pub fn set_subwoofer_volume(&self, volume: i32) -> Result<serde_json::Value, YamahaError> {
+        let url = self.endpoint(
+            &self.0.ip,
+            &format!("main/setSubwooferVolume?volume={}", volume),
+        );
         Self::request(self, url)
     }
 
-    pub fn set_bass_extension(&self, extension: bool) -> Result<serde_json::Value, YamahaErrorCode> {
-        let url = self.endpoint(&format!("main/setBassExtension?enable={}", extension.to_string().to_lowercase()));
+    /// Active ou désactive l'extension des basses
+    pub fn set_bass_extension(&self, extension: bool) -> Result<serde_json::Value, YamahaError> {
+        let url = self.endpoint(
+            &self.0.ip,
+            &format!(
+                "main/setBassExtension?enable={}",
+                extension.to_string().to_lowercase()
+            ),
+        );
         Self::request(self, url)
     }
 
-    pub fn set_extra_bass(&self, extra_bass: bool) -> Result<serde_json::Value, YamahaErrorCode> {
-        let url = self.endpoint(&format!("main/setExtraBass?enable={}", extra_bass.to_string().to_lowercase()));
+    /// Active ou désactive le mode Extra Bass
+    pub fn set_extra_bass(&self, extra_bass: bool) -> Result<serde_json::Value, YamahaError> {
+        let url = self.endpoint(
+            &self.0.ip,
+            &format!(
+                "main/setExtraBass?enable={}",
+                extra_bass.to_string().to_lowercase()
+            ),
+        );
         Self::request(self, url)
     }
 
-    pub fn set_adaptative_drc(&self, drc: bool) -> Result<serde_json::Value, YamahaErrorCode> {
-        let url = self.endpoint(&format!("main/setAdaptativeDrc?enable={}", drc.to_string().to_lowercase()));
+    /// Active ou désactive le DRC adaptatif
+    pub fn set_adaptative_drc(&self, drc: bool) -> Result<serde_json::Value, YamahaError> {
+        let url = self.endpoint(
+            &self.0.ip,
+            &format!(
+                "main/setAdaptativeDrc?enable={}",
+                drc.to_string().to_lowercase()
+            ),
+        );
         Self::request(self, url)
     }
 }
