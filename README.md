@@ -29,7 +29,7 @@ yamaha_api = { path = "../yamaha_api" }
 ### Exemple (Async)
 
 ```rust
-use yamaha_api::YamahaAmp;
+use yamaha_api::{YamahaAmpAsync, GetStatus, Zone, SoundProgram};
 
 #[tokio::main]
 async fn main() {
@@ -54,7 +54,7 @@ async fn main() {
 ### Exemple (Blocking)
 
 ```rust
-use yamaha_api::YamahaAmpBlocking;
+use yamaha_api::{YamahaAmpBlocking, Zone, SoundProgram};
 
 fn main() {
         let amp = YamahaAmpBlocking::connect(Ipv4Addr::new(192, 168, 1, 126)).expect("Failed to connect sync");
@@ -77,7 +77,7 @@ fn main() {
 ## 🔍 Découverte automatique
 
 ```rust
-use yamaha_api::YamahaAmp;
+use yamaha_api::{YamahaAmpAsync, DiscoveryConfig};
 
 #[tokio::main]
 async fn main() {
@@ -99,7 +99,7 @@ async fn main() {
 Ou version bloquante :
 
 ```rust
-use yamaha_api::YamahaAmpBlocking;
+use yamaha_api::{YamahaAmpBlocking, DiscoveryConfig};
 
 fn main() {
     // Optional config
