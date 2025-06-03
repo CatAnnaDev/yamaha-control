@@ -33,16 +33,19 @@ use yamaha_api::YamahaAmp;
 
 #[tokio::main]
 async fn main() {
-    let amp = YamahaAmp::connect(Ipv4Addr::new(192, 168, 1, 126)).await;
+    let amp = YamahaAmpAsync::connect(Ipv4Addr::new(192, 168, 1, 126)).await.expect("Failed to connect async");
     if let Some(amp) = amp {
-        println!("Directly Connected async to {}", amp.model);
+        println!("Directly Connected async to {}", amp.info.model);
 
         if let Ok(e) = amp.get_zone_status(Zone::Main).await {
-            println!("Main: {}", e);
+            match serde_json::from_value::<GetStatus>(e) {
+                Ok(e) => println!("Main actual volume: {} / {}", e.volume, e.max_volume),
+                Err(e) => eprintln!("Error: {:?}", e),
+            }
         }
-        
+
         if let Err(e) = amp.set_sound_program(SoundProgram::Straight).await {
-            eprintln!("Error: {:?}", e);      
+            eprintln!("Error: {:?}", e);
         }
     }
 }
@@ -54,9 +57,9 @@ async fn main() {
 use yamaha_api::YamahaAmpBlocking;
 
 fn main() {
-        let amp = YamahaAmpBlocking::connect(Ipv4Addr::new(192, 168, 1, 126));
+        let amp = YamahaAmpBlocking::connect(Ipv4Addr::new(192, 168, 1, 126)).expect("Failed to connect sync");
         if let Some(amp) = amp {
-            println!("Directly Connected sync to {}", amp.model);
+            println!("Directly Connected sync to {}", amp.info.model);
 
             if let Ok(e) = amp.get_zone_status(Zone::Main) {
                 println!("Main: {}", e);
@@ -78,9 +81,17 @@ use yamaha_api::YamahaAmp;
 
 #[tokio::main]
 async fn main() {
-    let amps = YamahaAmp::discover().await;
+    // Optional config
+    let cfg = DiscoveryConfig {
+        subnet: Ipv4Addr::new(192, 168, 1, 0),
+        mask: 24,
+        timeout: Duration::from_millis(200),
+        max_concurrent: 50,
+    };
+
+    let amps = YamahaAmpAsync::discover(Some(cfg)).await.expect("Failed to discover amps async");
     for (index, amp) in amps.iter().enumerate() {
-        println!("Async found {}. {} -> ({})", index + 1, amp.model, amp.ip,);
+        println!("Async found {}. {} -> ({})", index + 1, amp.info.model, amp.ip, );
     }
 }
 ```
@@ -91,10 +102,18 @@ Ou version bloquante :
 use yamaha_api::YamahaAmpBlocking;
 
 fn main() {
-        let amps = YamahaAmpBlocking::discover();
-        for (index, amp) in amps.iter().enumerate() {
-            println!("Sync found {}. {} -> ({})", index + 1, amp.model, amp.ip);
-        }
+    // Optional config
+    let cfg = DiscoveryConfig {
+        subnet: Ipv4Addr::new(192, 168, 1, 0),
+        mask: 24,
+        timeout: Duration::from_millis(200),
+        max_concurrent: 50,
+    };
+
+    let amps = YamahaAmpBlocking::discover(Some(cfg)).expect("Failed to discover amps sync");
+    for (index, amp) in amps.iter().enumerate() {
+        println!("Sync found {}. {} -> ({})", index + 1, amp.info.model, amp.ip);
+    }
 }
 ```
 
@@ -105,6 +124,6 @@ fn main() {
 - `Input` : représente toutes les entrées disponibles (HDMI, USB, Bluetooth, etc.)
 - `SoundProgram` : représente tous les programmes sonores supportés (Straight, Music, Game, etc.)
 - `Zone` : support des différentes zones (`Main`, `Zone2`, etc.)
-- `YamahaAmpError` : gestion des erreurs d'API (code retour ≠ 0)
+- `YamahaError` : gestion des erreurs d'API (code retour ≠ 0)
 
 ---
